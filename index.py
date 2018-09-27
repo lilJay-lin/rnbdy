@@ -66,7 +66,7 @@ class Client(Cmd):
         for file in searchlist.get('list'):
             if file.get('isdir') == 1:
                 self.get_rename_list(file.get('path'), addStr)
-            else:
+            elif file.get('server_filename').find(addStr) == -1:
                 name = file.get('server_filename').partition('.')
                 self.renamelist.append((file.get('path'), name[0] + addStr + name[1] + name[2]))
                 # print(renamelist)
