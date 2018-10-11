@@ -29,8 +29,7 @@ class Client(Cmd):
         else:
             print('正在替换请稍后....')
             self.get_rename_list(args[0], args[1], args[2])
-            if len(self.renamelist) > 0:
-                pcs.rename(self.renamelist)
+            self._rename()
             print('替换完成')
 
     def do_format(self, arg):
@@ -41,9 +40,17 @@ class Client(Cmd):
         else:
             print('正在格式化....')
             self._format_dir(args[0])
-            if len(self.renamelist) > 0:
-                pcs.rename(self.renamelist)
+            self._rename()
             print('格式化完成')
+
+    def _rename(self):
+        list = []
+        if len(self.renamelist) > 0:
+            for temp in self.renamelist:
+                list.append(temp)
+                if len(list) == 100:
+                    pcs.rename(list)
+                    list = []
 
     def do_exit(self, arg):
         print('Bye!')
@@ -95,9 +102,7 @@ class Client(Cmd):
             if file.get('isdir') == 1:
                 name = file.get('server_filename')
                 name = re.sub(r'\s+', '', name)
-                name = re.sub(r'[a-zA-Z]+', '', name)
-                name = re.sub(r'\d+', '', name)
-                print(name)
+                name = re.sub(r'[a-zA-Z0-9\s]+', '', name)
                 self.renamelist.append((file.get('path'), name))
 
 
