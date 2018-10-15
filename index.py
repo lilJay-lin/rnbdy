@@ -4,6 +4,7 @@ import json
 import os
 import sys
 import re
+import time
 
 f = open('account',encoding='utf-8',mode='r')
 data = f.read()
@@ -11,7 +12,7 @@ f.closed
 user = data.split('\n')
 pcs = PCS(user[0], user[1])
 
-help = '请输入命令：\n replace 替换的文件夹路径 替换的文件名 需要在文件名尾部添加的字符串\n format 格式化的文件夹路径'
+help = '请输入命令：\n replace 替换的文件夹路径 替换的文件名 需要在文件名尾部添加的字符\n format 格式化的文件夹路径'
 
 class Client(Cmd):
     prompt = 'fun>'
@@ -30,14 +31,15 @@ class Client(Cmd):
         args = arg.split()
         print(arg)
         if len(args) < 2:
-            print('参数缺失： replace \'替换的文件夹路径\' 替换的文件名 需要在文件名尾部添加的字符串')
+            print('参数缺失： replace 替换的文件夹路径 替换的文件名 需要在文件名尾部添加的字符串')
         else:
             print('正在替换请稍后....')
             args3 = ''
             if len(args) == 3:
                 args3 = args[2]
             self.get_rename_list(args[0], args[1], args3)
-            self._rename()
+            while len(self.renamelist) > 0 or len(self.renamedir) > 0:
+                self._rename()
             print('替换完成')
 
     def do_format(self, arg):
@@ -45,32 +47,49 @@ class Client(Cmd):
         self.renamedir = []
         args = arg.split()
         if len(args) < 1:
-            print('参数缺失： format \'格式化文件夹路径\'')
+            print('参数缺失： format 格式化文件夹路径')
         else:
             print('正在格式化....')
             self._format_dir(args[0])
             self._rename()
             print('格式化完成')
+    #
+    # def do_replacedir(self, arg):
+    #     self.searchlist = []
+    #     self.renamedir = []
+    #     args = arg.split()
+    #     if len(args) < 2:
+    #         print('参数缺失： relacedir 格式化文件夹路径 添加的字符串')
+    #     else:
+    #         print('正在格式化....')
+    #         self._replace_dir(args[0], args[1])
+    #         print(len(self.renamedir))
+    #         self._rename()
+    #         print('格式化完成')
 
     def _rename(self):
         list = []
-        if len(self.renamelist) > 0:
-            for temp in self.renamelist:
-                list.append(temp)
+        print(len(self.renamedir))
+        print(len(self.renamelist))
+        # print(self.renamedir)
+        try:
+            while len(self.renamelist) > 0:
+                list.append(self.renamelist.pop())
                 if len(list) == 100:
                     pcs.rename(list)
                     list = []
-        if len(list) > 0:
-            pcs.rename(list)
-        list = []
-        if len(self.renamedir) > 0:
-            for temp in self.renamedir:
-                list.append(temp)
+            if len(list) > 0:
+                pcs.rename(list)
+            list = []
+            while len(self.renamedir) > 0:
+                list.append(self.renamedir.pop())
                 if len(list) == 100:
                     pcs.rename(list)
                     list = []
-        if len(list) > 0:
-            pcs.rename(list)
+            if len(list) > 0:
+                pcs.rename(list)
+        except Exception as err:
+            print(err)
 
     def do_exit(self, arg):
         print('Bye!')
@@ -102,9 +121,6 @@ class Client(Cmd):
     def default(self, line):
         print(help)
 
-    def get_rename_list2(self, path, reStr, addStr):
-        self._search(path, reStr, 1)
-
     def _search(self, path, reStr, page):
         response = pcs.search(path, reStr, page)
         searchlist = response.json()
@@ -115,26 +131,32 @@ class Client(Cmd):
             self._search(path, reStr, page)
 
     def get_rename_list(self, path, reStr, addStr):
-        # response = pcs.list_files(path)
-        # searchlist = response.json()
-        self._search(path, reStr, 1)
-        if len(self.searchlist) > 0:
-            for file in self.searchlist:
-                if file.get('isdir') == 1 and file.get('server_filename').find(reStr) != -1:
+        response = pcs.list_files(path)
+        searchlist = response.json()
+        if len(searchlist) > 0:
+            try:
+                for file in searchlist.get('list'):
+                    if file.get('isdir') == 1:
+                        if file.get('server_filename').find(reStr) != -1:
+                            name = file.get('server_filename').replace(reStr, addStr)
+                            self.renamedir.append((file.get('path'), name))
+                        elif file.get('server_filename').find(addStr) == -1:
+                            name = file.get('server_filename') + '【公众号：' + addStr + '分享】'
+                            self.renamedir.append((file.get('path'), name))
+                        self.get_rename_list(file.get('path'), reStr, addStr)
+                    elif addStr != '' and file.get('server_filename').find(addStr) == -1 and file.get('server_filename').find(reStr) == -1:
+                        name = file.get('server_filename').partition('.')
+                        self.renamelist.append((file.get('path'), name[0] + '【公众号：' + addStr + '分享】' + name[1] + name[2]))
+                    elif file.get('server_filename').find(reStr) != -1:
                         name = file.get('server_filename').replace(reStr, addStr)
-                        self.renamedir.append((file.get('path'), name))
-                    # self.get_rename_list(file.get('path'), reStr, addStr)
-                elif file.get('server_filename').find(addStr) == -1 and file.get('server_filename').find(reStr) == -1:
-                    name = file.get('server_filename').partition('.')
-                    self.renamelist.append((file.get('path'), name[0] + '【公众号：' + addStr + '分享】' + name[1] + name[2]))
-                elif file.get('server_filename').find(reStr) != -1:
-                    name = file.get('server_filename').replace(reStr, addStr)
-                    self.renamelist.append((file.get('path'), name))
-                    #     # name = file.get('server_filename').partition('.')
-                    #     # self.renamelist.append((file.get('path'), name[0] + addStr + name[1] + name[2]))
-                    #     name = file.get('server_filename').replace(reStr, addStr)
-                    #     self.renamelist.append((file.get('path'), name))
-                    #     # print(renamelist)
+                        self.renamelist.append((file.get('path'), name))
+                        #     # name = file.get('server_filename').partition('.')
+                        #     # self.renamelist.append((file.get('path'), name[0] + addStr + name[1] + name[2]))
+                        #     name = file.get('server_filename').replace(reStr, addStr)
+                        #     self.renamelist.append((file.get('path'), name))
+                        #     # print(renamelist)
+            except Exception as err:
+                print(err)
         return
 
     def _format_dir(self, path):
@@ -146,6 +168,17 @@ class Client(Cmd):
                 name = re.sub(r'\s+', '', name)
                 name = re.sub(r'[a-zA-Z0-9\s]+', '', name)
                 self.renamedir.append((file.get('path'), name))
+
+    # def _replace_dir(self, path, addStr):
+    #     response = pcs.list_files(path)
+    #     searchlist = response.json()
+    #     if len(searchlist) > 0:
+    #         for file in searchlist.get('list'):
+    #             if file.get('isdir') == 1:
+    #                 if file.get('server_filename').find(addStr) == -1:
+    #                     name = file.get('server_filename') + '【公众号：' + addStr + '分享】'
+    #                     self.renamedir.append((file.get('path'), name))
+    #                 self._replace_dir(file.get('path'), addStr)
 
 
 if __name__ == '__main__':
