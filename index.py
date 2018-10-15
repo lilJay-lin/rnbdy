@@ -18,23 +18,30 @@ class Client(Cmd):
     intro = '百度云盘文件名替换工具 \n' + help
 
     def __init__(self):
+        self.searchlist = []
         self.renamelist = []
         self.renamedir = []
         Cmd.__init__(self)
 
     def do_replace(self, arg):
+        self.searchlist = []
         self.renamelist = []
         self.renamedir = []
         args = arg.split()
-        if len(args) < 3:
+        print(arg)
+        if len(args) < 2:
             print('参数缺失： replace \'替换的文件夹路径\' 替换的文件名 需要在文件名尾部添加的字符串')
         else:
             print('正在替换请稍后....')
-            self.get_rename_list(args[0], args[1], args[2])
+            args3 = ''
+            if len(args) == 3:
+                args3 = args[2]
+            self.get_rename_list(args[0], args[1], args3)
             self._rename()
             print('替换完成')
 
     def do_format(self, arg):
+        self.searchlist = []
         self.renamedir = []
         args = arg.split()
         if len(args) < 1:
@@ -67,7 +74,8 @@ class Client(Cmd):
 
     def do_exit(self, arg):
         print('Bye!')
-        return True  # 返回True，直接输入exit命令将会退出
+        return True  # 返回True，直接输
+    # 入exit命令将会退出
 
     # def preloop(self):
     #     print
@@ -94,16 +102,28 @@ class Client(Cmd):
     def default(self, line):
         print(help)
 
-    def get_rename_list(self, path, reStr, addStr):
-        response = pcs.list_files(path)
+    def get_rename_list2(self, path, reStr, addStr):
+        self._search(path, reStr, 1)
+
+    def _search(self, path, reStr, page):
+        response = pcs.search(path, reStr, page)
         searchlist = response.json()
-        if len(searchlist) > 0:
-            for file in searchlist.get('list'):
-                if file.get('isdir') == 1:
-                    if file.get('server_filename').find(reStr) != -1:
+        page = page + 1
+        if len(searchlist.get('list')) > 0:
+            self.searchlist.extend(searchlist.get('list'))
+        if searchlist.get('has_more') == 1:
+            self._search(path, reStr, page)
+
+    def get_rename_list(self, path, reStr, addStr):
+        # response = pcs.list_files(path)
+        # searchlist = response.json()
+        self._search(path, reStr, 1)
+        if len(self.searchlist) > 0:
+            for file in self.searchlist:
+                if file.get('isdir') == 1 and file.get('server_filename').find(reStr) != -1:
                         name = file.get('server_filename').replace(reStr, addStr)
                         self.renamedir.append((file.get('path'), name))
-                    self.get_rename_list(file.get('path'), reStr, addStr)
+                    # self.get_rename_list(file.get('path'), reStr, addStr)
                 elif file.get('server_filename').find(addStr) == -1 and file.get('server_filename').find(reStr) == -1:
                     name = file.get('server_filename').partition('.')
                     self.renamelist.append((file.get('path'), name[0] + '【公众号：' + addStr + '分享】' + name[1] + name[2]))
